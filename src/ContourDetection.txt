@@ -1,0 +1,184 @@
+ #This will have Gaussian Blur, Contour Detectin, etc
+
+import cv2
+from time import sleep
+import numpy as np
+from picamera2 import Picamera2
+import serial
+import RPi.GPIO as GPIO
+
+if __name__ == '__main__':
+
+#    GPIO.setwarnings(False)
+#    GPIO.setmode(GPIO.BOARD)
+#    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    ''' #Test later in order to see how the button works
+        while(True):
+        if GPIO.input(5) == GPIO.LOW: #wait for button to be pressed
+            break
+    '''
+
+    #Intializing the camera
+    picam2 = Picamera2()
+    picam2.preview_configuration.main.size = (640,480)
+    picam2.preview_configuration.main.format = "RGB888"
+    picam2.preview_configuration.align()
+    picam2.configure("preview")
+    picam2.start()
+    width = 640
+    height = 480
+    pg = 0.25 #proportional gain
+    kp = 0.04
+    angle = 2090
+    #speed = 1380
+    #points = [(115,100), (525,100), (640,470), (0,470)]
+
+    points = [(0,0),(640,0),(640,480),(0,480)]
+    color = (0, 255, 255) #yellow
+    thickness = 4 #line thickness
+    ser = serial.Serial('/dev/ttyACM0', 57600, timeout = 1) #approximately 57600 characters per second
+    ser.flush()
+    sleep(8)
+    
+    #speed = 1500
+    speed = 1660 #faster speed to accelerate
+    ser.write((str(speed) + "\n").encode('utf-8'))
+
+    while True:
+        im= picam2.capture_array()
+        #cv2.imshow("Camera", im)
+
+        '''
+        line1 = cv2.line(im, points[0], points[1], color, thickness)
+        line2 = cv2.line(im, points[1], points[2], color, thickness)
+        line3 = cv2.line(im, points[2], points[3], color, thickness)
+        line4 = cv2.line(im, points[3], points[0], color, thickness)
+
+        #cv2.imshow("ROI", im)
+
+        ''' #remove to optimize the code
+
+        input = np.float32(points)
+        output = np.float32([(0,0), (width-1, 0), (width-1,height-1), (0, height-1)])
+
+        matrix = cv2.getPerspectiveTransform(input,output)
+        imgPerspective = cv2.warpPerspective(im, matrix, (width, height),
+                                            cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
+    #cv2.imshow("Perspective", imgPerspective)
+        #im = imgPerspective
+
+
+
+        # Find contours in the edge image
+        imgGray = cv2.cvtColor(imgPerspective, cv2.COLOR_BGR2GRAY)
+        ret, imgThresh = cv2.threshold(imgGray, 35, 255, cv2.THRESH_BINARY_INV)
+       # cv2.imshow("thres", imgThresh)
+
+        # First coord is top left, second coord is bottom right.
+        lft = [[60,300],[140,350]]
+
+        right = [[520,300],[600,350]]
+        
+        front = [[200,300],[440,480]]
+        
+        contoursFront, _ = cv2.findContours(imgThresh[front[0][1]:front[1][1],front[0][0]:front[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+
+        contours, _ = cv2.findContours(imgThresh[lft[0][1]:lft[1][1],lft[0][0]:lft[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contoursRight, _ = cv2.findContours(imgThresh[right[0][1]:right[1][1],right[0][0]:right[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #contours, _ = cv2.findContours(imgThresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        #print(contours[1])
+        #contours =  map(lambda c: c + lft[0],contours)
+
+        # Offset based off topleft corner of each left/right rectrangle
+        contours = [ c + lft[0] for c in contours]
+        contoursRight = [ c + right[0] for c in contoursRight]
+        
+        contoursFront = [ c + front[0] for c in contoursFront]
+
+
+
+        # Draw contours on the original image
+        cv2.drawContours(im, contours, -1, (0, 255, 0), 2)
+        cv2.drawContours(im, contoursRight, -1, (0, 255, 0), 2)
+        cv2.drawContours(im, contoursFront, -1, (0, 255, 0), 2)
+
+        lftRectColor = (255,0,0) # Blue for "Off"
+        rtRectColor = (255,0,0) # Blue for "Off"
+        
+        frontRectColor = (255,0,0) # Blue for off.
+
+        lftTot = 0
+        for c in contours:
+            lftTot += cv2.contourArea(c)
+
+        rtTot = 0
+        for c in contoursRight:
+            rtTot += cv2.contourArea(c)
+            
+        frontTot = 0
+        for c in contoursFront:
+            frontTot += cv2.contourArea(c)
+        frontBlocked = frontTot >= 5000
+        if frontBlocked:
+            state = 2
+        else:
+            state = 1
+        if state == 1:	
+			error = lftTot-rtTot
+			steering = kp * error
+			if steering > 45:
+				steering = 45
+			if steering < -45:
+				steering = -45
+			angle = 2090 + steering
+			print(angle)
+			ser.write((str(angle) + "\n").encode('utf-8'))
+			ser.flush()
+        elif state == 2:
+            if frontTot < 1000:
+				state = 1
+			if lftTot < 500:
+				steering = -45
+			elif rtTot < 500:
+				steering = 45
+			angle = 2090 + steering
+			print(angle)
+			ser.write((str(angle) + "\n").encode('utf-8'))
+			ser.flush()
+        #lft = map(int,lft)
+        #right = map(int,right)
+        cv2.rectangle(im,tuple(front[0]),tuple(front[1]),frontRectColor,2)
+        cv2.putText(im,str(frontTot),(front[0][0],front[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,frontRectColor,2,cv2.LINE_AA)
+        
+        cv2.rectangle(im,tuple(lft[0]),tuple(lft[1]),lftRectColor,2)
+        cv2.rectangle(im,tuple(right[0]),tuple(right[1]),rtRectColor,2)
+        cv2.putText(im,str(lftTot),(lft[0][0],lft[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
+        cv2.putText(im,str(rtTot),(right[0][0],right[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,rtRectColor,2,cv2.LINE_AA)
+
+
+
+
+        #speed = 1000
+     #   px.forward(speed)
+
+
+        #imgCanny2 = cv2.Canny(imgGray, lowThresh, highThresh)
+        #cv2.imshow("canny without gaussian blur", imgCanny2)
+
+        #imgFinal = imgGray
+        cv2.imshow("Thresh", imgThresh)
+
+        # Display the original image with contours
+        cv2.imshow("Contours", im)
+
+        if cv2.waitKey(1)==ord('q'):#wait until key ‘q’ pressed
+            ser.flush()
+            speed = 1500
+            ser.write((str(speed) + "\n").encode('utf-8'))
+            angle = 2090
+            ser.write((str(angle) + "\n").encode('utf-8'))
+            break
+    cv2.destroyAllWindows()
+#final 2
