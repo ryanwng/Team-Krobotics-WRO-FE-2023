@@ -51,7 +51,9 @@ In order to turn correctly for the traffic lights, we have a region of interest 
 As previously mentioned, the car counts the number of laps by the number of times the car goes into its turning phase. Once it counts that it has turned 12 times, it means that 12 laps have occurred. Then, the program will stop.
 
 **Mechanical Parts**
+
 #Traxxas Trx4M
+
 The Traxxas Trx4m was initially chosen due to the fact that it would be easy to modify, as well as being a great all around car which is able to handle all sorts of terrain, electrical components being compatible with ours, as well as fitting the size and weight restraints of the car.
 
 #Raspberry Pi 4 Model B
