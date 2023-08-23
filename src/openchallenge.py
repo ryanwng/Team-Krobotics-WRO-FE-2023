@@ -172,5 +172,3 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
     cv2.destroyAllWindows()
-
-#Major Procrastination
