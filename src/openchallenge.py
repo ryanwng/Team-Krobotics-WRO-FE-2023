@@ -1,5 +1,5 @@
 import cv2
-from time import sleep
+import time
 import numpy as np
 from picamera2 import Picamera2
 import serial
@@ -29,18 +29,34 @@ if __name__ == '__main__':
     kd = 0
     kp = 0.004
     angle = 2090
-    count = 0
     turns = 0
-    leftn = False
-    rightn = False
     pasterror = 0
-    #points = [(115,100), (525,100), (640,470), (0,470)]
+    
+    orangeturns = 0
+    # Initialize the last detection time
+    last_detection_time = time.time()
+    blast_detection_time = time.time()
+
+    lft = [[0,150],[150,480]]
+    right = [[490,150],[640,480]]
+    
+    whole = [[0,0],[640,480]]
+
+    lftRectColor = (255,0,0) # Blue
+    rtRectColor = (255,0,0) #Still blue
+
+    # Define range for dark blue color in HSV
+    lower_blue = np.array([110,50,50])
+    upper_blue = np.array([170,255,255])
+
+    lower_orange = np.array([10,100,20])
+    upper_orange = np.array([25,255,255])
 
     points = [(0,0),(640,0),(640,480),(0,480)]
 
     ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 57600 characters per second
     ser.flush()
-    sleep(8)	    
+    time.sleep(8)	    
     
     speed = 1660 #faster speed to accelerate
     ser.write((str(speed) + "\n").encode('utf-8'))
@@ -56,32 +72,62 @@ if __name__ == '__main__':
         matrix = cv2.getPerspectiveTransform(input,output)
         imgPerspective = cv2.warpPerspective(im, matrix, (width, height),
                                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
+                                            
+                                                          
+		# Define range for orange color in HSV
+        hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
 
+        # Threshold the HSV image to get only blue and orange colors
+        mask_blue = cv2.inRange(hsv, lower_blue, upper_blue)
+        mask_orange = cv2.inRange(hsv, lower_orange, upper_orange)
 
+        # Bitwise-OR mask and original image
+        res_blue = cv2.bitwise_and(im,im, mask= mask_blue)
+        res_orange = cv2.bitwise_and(im,im, mask= mask_orange)
+
+        # Find contours in the result images
+        contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours_orange, _ = cv2.findContours(mask_orange, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        # If contours are found and 5 seconds have passed since the last detection,
+        # increment the counter and update the last detection 
+        for i in range(len(contours_blue)):
+            cnt = contours_blue[i]
+            areablue = cv2.contourArea(cnt)
+
+        if areablue > 10 and (time.time() - blast_detection_time >= 6):
+            turns += 1
+            print('# of Turns:', turns)
+            blast_detection_time = time.time()         
+
+        for i in range(len(contours_orange)):
+            cnt = contours_orange[i]
+            areaorang = cv2.contourArea(cnt)
+
+        if areaorang > 58 and (time.time() - last_detection_time >= 6):
+            orangeturns += 1
+            print('# of Turns:', orangeturns)
+            last_detection_time = time.time()  
 
         # Find contours in the edge image
         imgGray = cv2.cvtColor(imgPerspective, cv2.COLOR_BGR2GRAY)
-        ret, imgThresh = cv2.threshold(imgGray, 30, 255, cv2.THRESH_BINARY_INV)
+        ret, imgThresh = cv2.threshold(imgGray, 35, 255, cv2.THRESH_BINARY_INV) #This number may be subject to change, in order to detect only black
         # First coord is top left, second coord is bottom right.
-        
-        lft = [[0,310],[220,480]]
-
-        right = [[420,305],[640,480]]
 
         contoursLeft, _ = cv2.findContours(imgThresh[lft[0][1]:lft[1][1],lft[0][0]:lft[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contoursRight, _ = cv2.findContours(imgThresh[right[0][1]:right[1][1],right[0][0]:right[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+        
+        
         # Offset based off topleft corner of each left/right rectrangle
         contoursLeft = [ c + lft[0] for c in contoursLeft]
         contoursRight = [ c + right[0] for c in contoursRight]
+        
        
 
         # Draw contours on the original image
         cv2.drawContours(im, contoursLeft, -1, (0, 255, 0), 2)
         cv2.drawContours(im, contoursRight, -1, (0, 255, 0), 2)
-     
-        lftRectColor = (255,0,0) # Blue
-        rtRectColor = (255,0,0) #Still blue
+
        
         lftTot = 0
         for c in contoursLeft:
@@ -90,6 +136,7 @@ if __name__ == '__main__':
         rtTot = 0
         for c in contoursRight:
             rtTot += cv2.contourArea(c)
+                   
         
 
         error = lftTot-rtTot
@@ -97,41 +144,29 @@ if __name__ == '__main__':
         steering = kp * error + kd * d 
         steering = int(steering)
         pasterror = error
-        print("Steering:",steering)
         if angle > 2180 or angle < 2000:
             angle = 2090
-        
-        
-        if (lftTot <= 2000 and rtTot >= 2000 and error < -1700) or (lftTot <= 3000 and rtTot <= 9000 and error < -5500) or (lftTot <= 7000 and rtTot >= 13000 and error < -6000):
-            angle = 2050 + steering
-            print(lftTot <= 2000 and rtTot >= 2000 and error < -1700)
-            print(lftTot <= 3000 and rtTot <= 9000 and error < -5500)
+    
+        '''
+        if (lftTot <= 2000 and rtTot >= 2000 and error < -1900) or (lftTot <= 3000 and rtTot <= 9000 and error < -5500) or (lftTot <= 7000 and rtTot >= 13000 and error < -6000):
+            angle = 2055 + steering
+            print(lftTot <= 2000 and rtTot >= 2000 and error < -1900)
+            print(lftTot <= 3000 and rtTot <= 9000 and error < -4500)
             print(lftTot <= 7000 and rtTot >= 13000 and error < -6000)
-            if not counted:
-                count += 1
-            counted = True
-            rightn = True
-        elif (rtTot <= 2000 and lftTot >= 2000 and error > 1700) or (rtTot <= 3000 and lftTot <= 9000 and error > 5500) or (rtTot <= 7000 and lftTot >= 13000 and error > 6000):
-            angle = 2130 + steering
-            print(rtTot <= 2000 and lftTot >= 2000 and error > 1700)
-            print(rtTot <= 3000 and lftTot <= 9000 and error > 5500)
+
+        elif (rtTot <= 2000 and lftTot >= 2000 and error > 1900) or (rtTot <= 3000 and lftTot <= 9000 and error > 5500) or (rtTot <= 7000 and lftTot >= 13000 and error > 6000):
+            angle = 2125 + steering
+            print(rtTot <= 2000 and lftTot >= 2000 and error > 1900)
+            print(rtTot <= 3000 and lftTot <= 9000 and error > 4500)
             print(rtTot <= 7000 and lftTot >= 13000 and error > 6000)
-            if not counted:
-                count+=1
-            counted = True
-            leftn = True
-        elif error > 450 or error < -450 and (rightn== True or leftn == True):
-            counted = False
-            angle = 2090
-            if steering > 45:
-                steering = 45
-            elif steering < -45:
-                steering = -45 
-            angle += steering
-            leftn = False
-            rightn = False
-        if count >= 1200: 
-            print("stopping")
+        '''
+
+        if error > 450 or error < -450:
+            angle = 2090 + steering
+            
+        if orangeturns >= 36 or turns >=36: 
+            print("3 LAPS BABY YAY")
+            time.sleep(0.5)
             ser.flush()
             speed = 1500
             angle = 2090
@@ -139,6 +174,7 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
             cv2.destroyAllWindows()
+            
         
         
         angle = int(angle)    
@@ -146,25 +182,30 @@ if __name__ == '__main__':
             angle = 2160
         elif angle < 2020:
             angle = 2020
-        
-        sleep(0.1)
-        print("Angle:",angle)
-        print("Error:",error)
-        print("Turns:", count)
+       
+        #print("Angle:",angle)
+        #print("Steering:",steering)
+        #print("Error:",error)
+        print("Turns:", turns)
+        print("Blue Area:", areablue)
+        print("Orange Area:", areaorang)
+
+        print("Orange turns:",orangeturns)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
+        
 
         cv2.rectangle(im,tuple(lft[0]),tuple(lft[1]),lftRectColor,2)
         cv2.rectangle(im,tuple(right[0]),tuple(right[1]),rtRectColor,2)
         cv2.putText(im,str(lftTot),(lft[0][0],lft[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
         cv2.putText(im,str(rtTot),(right[0][0],right[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,rtRectColor,2,cv2.LINE_AA)
         cv2.putText(im,str(angle),(lft[0][0]-20,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-        cv2.putText(im,str(count),(lft[0][0]-100,right[0][1]-250),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
+        cv2.putText(im,str(turns),(lft[0][0]-50,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
+    
         #cv2.imshow("Thresh", imgThresh)
+        cv2.imshow("Final", im)
 
-        cv2.imshow("Contours", im)
-
-        if cv2.waitKey(1)==ord('q') or turns == 3: #wait until key ‘q’ pressed
+        if cv2.waitKey(1)==ord('q'): #End program, press 'q'
             ser.flush()
             speed = 1500
             angle = 2090
