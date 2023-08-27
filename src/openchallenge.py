@@ -1,69 +1,74 @@
+'''
+TO DO:
+Maybe use PID Derivative, PD, etc (Although this may not be necessary)
+Reduce ROI slightly (make it slightly lower)
+Clean up code a little bit
+
+
+'''
 import cv2
 import time
 import numpy as np
 from picamera2 import Picamera2
 import serial
-#import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 
 if __name__ == '__main__':
+    
 
-#    GPIO.setwarnings(False)
-#    GPIO.setmode(GPIO.BOARD)
-#    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-    ''' #Test later in order to see how the button works
-        while(True):
-        if GPIO.input(5) == GPIO.LOW: #wait for button to be pressed
-            break
-    '''
-
-    #Intializing the camera
+    #Initializing the camera
     picam2 = Picamera2()
     picam2.preview_configuration.main.size = (640,480)
     picam2.preview_configuration.main.format = "RGB888"
     picam2.preview_configuration.align()
     picam2.configure("preview")
     picam2.start()
+
+    #Initalizing variables
     width = 640
     height = 480
-    kd = 0
     kp = 0.008
     angle = 2090
     turns = 0
+    kd = 0 #NOTE KD, PAST ERROR aren't used in the program, use or get rid of?
     pasterror = 0
-    
-    orangeturns = 0
-    # Initialize the last detection time
-    last_detection_time = time.time()
-    blast_detection_time = time.time()
 
+    # Initializing last detection time
+    last_detection_time = time.time()
+    delay = time.time()
+
+    #Region of interests for walls 
     lft = [[0,150],[150,480]]
     right = [[490,150],[640,480]]
-    
-    whole = [[0,0],[640,480]]
 
-    lftRectColor = (255,0,0) # Blue
-    rtRectColor = (255,0,0) #Still blue
+    blueColour = (255,0,0) # Blue
 
-    # Define range for dark blue color in HSV
+    # Define range for blue and orange in HSV
     lower_blue = np.array([100,40,40])
     upper_blue = np.array([180,255,255])
-
+	
     lower_orange = np.array([0,40,20])
     upper_orange = np.array([11,255,255])
 
+	
+    # Whole screen
     points = [(0,0),(640,0),(640,480),(0,480)]
     
-    lap = False
-
-    ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 57600 characters per second
+    ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 115200 characters per second
     ser.flush()
     time.sleep(8)	    
     
-    speed = 1660 #faster speed to accelerate
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+	
+    while(True):
+        if GPIO.input(5) == GPIO.LOW: #Waits for a button to be pressed before running the code
+            break
+            
+    speed = 1660
     ser.write((str(speed) + "\n").encode('utf-8'))
-    count = 0
-    counted = False
+    
     while True:
         im= picam2.capture_array()
 
@@ -76,7 +81,7 @@ if __name__ == '__main__':
                                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
                                             
                                                           
-		# Define range for orange color in HSV
+	# Range for hsv
         hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
 
         # Threshold the HSV image to get only blue and orange colors
@@ -87,12 +92,11 @@ if __name__ == '__main__':
         res_blue = cv2.bitwise_and(im,im, mask= mask_blue)
         res_orange = cv2.bitwise_and(im,im, mask= mask_orange)
 
-        # Find contours in the result images
+        # Find contours in the images
         contours_blue, _ = cv2.findContours(mask_blue, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours_orange, _ = cv2.findContours(mask_orange, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        # If contours are found and 5 seconds have passed since the last detection,
-        # increment the counter and update the last detection 
+	# Find area of blue and orange lines respectively.
         for i in range(len(contours_blue)):
             cnt = contours_blue[i]
             areablue = cv2.contourArea(cnt)
@@ -102,10 +106,11 @@ if __name__ == '__main__':
             areaorang = cv2.contourArea(cnt)
     
 
-
         # Find contours in the edge image
         imgGray = cv2.cvtColor(imgPerspective, cv2.COLOR_BGR2GRAY)
-        ret, imgThresh = cv2.threshold(imgGray, 40, 255, cv2.THRESH_BINARY_INV) #This number may be subject to change, in order to detect only black
+        ret, imgThresh = cv2.threshold(imgGray, 40, 255, cv2.THRESH_BINARY_INV) #1st number (40) may be subject to change, in order to detect only black depending on lighting
+
+	    
         # First coord is top left, second coord is bottom right.
 
         contoursLeft, _ = cv2.findContours(imgThresh[lft[0][1]:lft[1][1],lft[0][0]:lft[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -116,13 +121,8 @@ if __name__ == '__main__':
         contoursLeft = [ c + lft[0] for c in contoursLeft]
         contoursRight = [ c + right[0] for c in contoursRight]
         
-       
 
-        # Draw contours on the original image
-        cv2.drawContours(im, contoursLeft, -1, (0, 255, 0), 2)
-        cv2.drawContours(im, contoursRight, -1, (0, 255, 0), 2)
-
-       
+	# Finding area of black in left and right Region of Interests (ROI)
         lftTot = 0
         for c in contoursLeft:
             lftTot += cv2.contourArea(c)
@@ -131,38 +131,29 @@ if __name__ == '__main__':
         for c in contoursRight:
             rtTot += cv2.contourArea(c)
                    
-        
 
+	# Steering logic
         error = lftTot-rtTot
         d = error - pasterror 
         steering = kp * error + kd * d 
         steering = int(steering)
         pasterror = error
+
+	# If angle is too wide, car goes back to 2090    
         if angle > 2180 or angle < 2000:
             angle = 2090
-    
-        if ((lftTot < 2000 or rtTot < 2000) and time.time() - blast_detection_time >= 8.5):
-            turns += 1
-            blast_detection_time = time.time()     
-        '''
-        if (lftTot <= 2000 and rtTot >= 2000 and error < -1900) or (lftTot <= 3000 and rtTot <= 9000 and error < -5500) or (lftTot <= 7000 and rtTot >= 13000 and error < -6000):
-            angle = 2055 + steering
-            print(lftTot <= 2000 and rtTot >= 2000 and error < -1900)
-            print(lftTot <= 3000 and rtTot <= 9000 and error < -4500)
-            print(lftTot <= 7000 and rtTot >= 13000 and error < -6000)
 
-        elif (rtTot <= 2000 and lftTot >= 2000 and error > 1900) or (rtTot <= 3000 and lftTot <= 9000 and error > 5500) or (rtTot <= 7000 and lftTot >= 13000 and error > 6000):
-            angle = 2125 + steering
-            print(rtTot <= 2000 and lftTot >= 2000 and error > 1900)
-            print(rtTot <= 3000 and lftTot <= 9000 and error > 4500)
-            print(rtTot <= 7000 and lftTot >= 13000 and error > 6000)
-        '''
-
-        if error > 450 or error < -450:
+	# If there's enough disparity between the areas of the two ROIS, enact steering logic
+	if error > 450 or error < -450:
             angle = 2090 + steering
-            
+		
+    	# Counts the number of turns done, with a delay on counting the number of laps
+        if ((lftTot < 2000 or rtTot < 2000) and time.time() - delay >= 8.5):
+            turns += 1
+            delay = time.time()     
+
+	# If 12 turns have elapsed (3 laps), then delay for a little bit, before stopping
         if turns >=12: 
-            print("3 LAPS BABY YAY")
             if lap == False:
                 last_detection_time = time.time()
             lap = True
@@ -175,35 +166,16 @@ if __name__ == '__main__':
                 break
                 cv2.destroyAllWindows()
 				
-            
-        
-        
+        #Makes sure the angle is not too extreme
         angle = int(angle)    
         if angle > 2160:
             angle = 2160
         elif angle < 2020:
             angle = 2020
-       
-        #print("Angle:",angle)
-        #print("Steering:",steering)
-        #print("Error:",error)
-        print("Turns:", turns)
-        #print("Blue Area:", areablue)
-        #print("Orange Area:", areaorang)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
-        
 
-        cv2.rectangle(im,tuple(lft[0]),tuple(lft[1]),lftRectColor,2)
-        cv2.rectangle(im,tuple(right[0]),tuple(right[1]),rtRectColor,2)
-        cv2.putText(im,str(lftTot),(lft[0][0],lft[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-        cv2.putText(im,str(rtTot),(right[0][0],right[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,rtRectColor,2,cv2.LINE_AA)
-        cv2.putText(im,str(angle),(lft[0][0]-20,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-        cv2.putText(im,str(turns),(lft[0][0]-50,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-    
-        #cv2.imshow("Thresh", imgThresh)
-        cv2.imshow("Final", im)
-
+	# GET RID OF, NOT NEEDED IN FINAL PRODUCT
         if cv2.waitKey(1)==ord('q'): #End program, press 'q'
             ser.flush()
             speed = 1500
@@ -212,5 +184,3 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
     cv2.destroyAllWindows()
-
-#Improved Open (More consistent)
