@@ -27,7 +27,7 @@ if __name__ == '__main__':
     width = 640
     height = 480
     kd = 0
-    kp = 0.004
+    kp = 0.008
     angle = 2090
     turns = 0
     pasterror = 0
@@ -46,13 +46,15 @@ if __name__ == '__main__':
     rtRectColor = (255,0,0) #Still blue
 
     # Define range for dark blue color in HSV
-    lower_blue = np.array([110,50,50])
-    upper_blue = np.array([170,255,255])
+    lower_blue = np.array([100,40,40])
+    upper_blue = np.array([180,255,255])
 
-    lower_orange = np.array([10,100,20])
-    upper_orange = np.array([25,255,255])
+    lower_orange = np.array([0,40,20])
+    upper_orange = np.array([11,255,255])
 
     points = [(0,0),(640,0),(640,480),(0,480)]
+    
+    lap = False
 
     ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 57600 characters per second
     ser.flush()
@@ -94,24 +96,16 @@ if __name__ == '__main__':
         for i in range(len(contours_blue)):
             cnt = contours_blue[i]
             areablue = cv2.contourArea(cnt)
-
-        if areablue > 10 and (time.time() - blast_detection_time >= 6):
-            turns += 1
-            print('# of Turns:', turns)
-            blast_detection_time = time.time()         
-
+            
         for i in range(len(contours_orange)):
             cnt = contours_orange[i]
             areaorang = cv2.contourArea(cnt)
+    
 
-        if areaorang > 58 and (time.time() - last_detection_time >= 6):
-            orangeturns += 1
-            print('# of Turns:', orangeturns)
-            last_detection_time = time.time()  
 
         # Find contours in the edge image
         imgGray = cv2.cvtColor(imgPerspective, cv2.COLOR_BGR2GRAY)
-        ret, imgThresh = cv2.threshold(imgGray, 35, 255, cv2.THRESH_BINARY_INV) #This number may be subject to change, in order to detect only black
+        ret, imgThresh = cv2.threshold(imgGray, 40, 255, cv2.THRESH_BINARY_INV) #This number may be subject to change, in order to detect only black
         # First coord is top left, second coord is bottom right.
 
         contoursLeft, _ = cv2.findContours(imgThresh[lft[0][1]:lft[1][1],lft[0][0]:lft[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -147,6 +141,9 @@ if __name__ == '__main__':
         if angle > 2180 or angle < 2000:
             angle = 2090
     
+        if ((lftTot < 2000 or rtTot < 2000) and time.time() - blast_detection_time >= 8.5):
+            turns += 1
+            blast_detection_time = time.time()     
         '''
         if (lftTot <= 2000 and rtTot >= 2000 and error < -1900) or (lftTot <= 3000 and rtTot <= 9000 and error < -5500) or (lftTot <= 7000 and rtTot >= 13000 and error < -6000):
             angle = 2055 + steering
@@ -164,16 +161,20 @@ if __name__ == '__main__':
         if error > 450 or error < -450:
             angle = 2090 + steering
             
-        if orangeturns >= 36 or turns >=36: 
+        if turns >=12: 
             print("3 LAPS BABY YAY")
-            time.sleep(0.5)
-            ser.flush()
-            speed = 1500
-            angle = 2090
-            ser.write((str(speed) + "\n").encode('utf-8'))
-            ser.write((str(angle) + "\n").encode('utf-8'))
-            break
-            cv2.destroyAllWindows()
+            if lap == False:
+                last_detection_time = time.time()
+            lap = True
+            if (time.time() - last_detection_time >= 6):
+                ser.flush()
+                speed = 1500
+                angle = 2090
+                ser.write((str(speed) + "\n").encode('utf-8'))
+                ser.write((str(angle) + "\n").encode('utf-8'))
+                break
+                cv2.destroyAllWindows()
+				
             
         
         
@@ -187,10 +188,8 @@ if __name__ == '__main__':
         #print("Steering:",steering)
         #print("Error:",error)
         print("Turns:", turns)
-        print("Blue Area:", areablue)
-        print("Orange Area:", areaorang)
-
-        print("Orange turns:",orangeturns)
+        #print("Blue Area:", areablue)
+        #print("Orange Area:", areaorang)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
         
@@ -213,3 +212,5 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
     cv2.destroyAllWindows()
+
+#Improved Open (More consistent)
