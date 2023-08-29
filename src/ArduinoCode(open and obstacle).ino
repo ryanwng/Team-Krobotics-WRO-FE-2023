@@ -1,36 +1,41 @@
-#include <Servo.h>
+/* CODE EXPLANATION
 
+The Arduino code works in tandem with the Raspberry Pi in a master-slave relationship. 
+The Pi calculates everything and sends the value of the speed and angles to the Arduino by giving it 4 digit numbers
+The Arduino then translates whether the value given is a speed or an angle, and then communicates that information to the motor.
+
+*/
+
+#include <Servo.h>
 Servo BLDCMotor;
 Servo servoMotor;
-int incomingByte = 0;
-char buff[8];
+char buff[5]; //Var which will help us differentiate the start and end of information
 
 
 void setup(){
-  Serial.begin(57600);
-  servoMotor.attach(9); // White wire
-  servoMotor.write(90);
-  BLDCMotor.attach(10, 1000, 2000); // Yellow wire
-  BLDCMotor.writeMicroseconds(1500);
-  delay(6000);//mandatory delay waiting for motor to be ready
+  Serial.begin(115200); //Baud rate == 115200
+  servoMotor.attach(11); // White wire for servo motor
+  servoMotor.write(90); //Sets servo to be straight (90 degrees)
+  BLDCMotor.attach(13, 1000, 2000); // Yellow wire
+  BLDCMotor.writeMicroseconds(1500); //Delay to wait for motor to be ready
 }
 
 
 void loop(){
-  if(Serial.available() > 0)
+  if(Serial.available() > 0) //If Arduino recieves a signal from the Pi
   {
     Serial.readBytes(buff,5);
-    buff[4] = '\0'; //end of byte
-    int val = atoi(buff);
-    Serial.println(val);
+    buff[4] = '\0'; //end of byte, so the Arduino know when the start and end of a command is
+    int val = atoi(buff); //converts string to int
 
-    if(val <= 1500 && val >= 1300)
+    if(val <= 1900 && val >= 1400) // Determines if the number is speed
     {
-      BLDCMotor.write(val); // < 1500 counter-clockwise; > 1500 clockwise
+      BLDCMotor.write(val); // > 1500 forward, < 1500 backwards
     }
-    else if(val > 2000 && val <= 2180)
-    {
-      servoMotor.write(val - 2000); // 2090 straight
+    else if(val > 2000 && val <= 2180) // Determines if the number is an angle
+    {                                                                                                       
+      servoMotor.write(val - 2000); // 2045 left, 2090 straight, 2135 right
     }
   }
 }
+
