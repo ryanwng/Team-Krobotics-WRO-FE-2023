@@ -163,9 +163,9 @@ if __name__ == '__main__':
 				
         #Makes sure the angle is not too extreme
         angle = int(angle)    
-        if angle > 2160:
+        if angle > 2140:
             angle = 2160
-        elif angle < 2020:
-            angle = 2020
+        elif angle < 2040:
+            angle = 2040
     
         ser.write((str(angle) + "\n").encode('utf-8'))
