@@ -1,6 +1,5 @@
 '''
 TO DO:
-Maybe use PID Derivative, PD, etc (Although this may not be necessary)
 Reduce ROI slightly (make it slightly lower)
 Clean up code a little bit
 
@@ -30,8 +29,6 @@ if __name__ == '__main__':
     kp = 0.008
     angle = 2090
     turns = 0
-    kd = 0 #NOTE KD, PAST ERROR aren't used in the program, use or get rid of?
-    pasterror = 0
 
     # Initializing last detection time
     last_detection_time = time.time()
@@ -134,10 +131,8 @@ if __name__ == '__main__':
 
 	# Steering logic
         error = lftTot-rtTot
-        d = error - pasterror 
-        steering = kp * error + kd * d 
+        steering = kp * error
         steering = int(steering)
-        pasterror = error
 
 	# If angle is too wide, car goes back to 2090    
         if angle > 2180 or angle < 2000:
@@ -174,13 +169,3 @@ if __name__ == '__main__':
             angle = 2020
     
         ser.write((str(angle) + "\n").encode('utf-8'))
-
-	# GET RID OF, NOT NEEDED IN FINAL PRODUCT
-        if cv2.waitKey(1)==ord('q'): #End program, press 'q'
-            ser.flush()
-            speed = 1500
-            angle = 2090
-            ser.write((str(speed) + "\n").encode('utf-8'))
-            ser.write((str(angle) + "\n").encode('utf-8'))
-            break
-    cv2.destroyAllWindows()
