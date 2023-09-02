@@ -1,5 +1,16 @@
+'''
+This code can successfully do the obstacle challenge.
+
+TO DO
+Make sure that green only shows "one" rectangle (max area, same as red)
+make it so that only red/green can be shown and not both
+Make it such that it tracks pillars and determines if needed to turn around for final lap
+Optimization
+
+'''
+
 import cv2
-from time import sleep
+import time
 import numpy as np
 from picamera2 import Picamera2
 import serial
@@ -7,11 +18,13 @@ import serial
 
 if __name__ == '__main__':
 
+    '''
+    This part will allow the code to run at the start of a button instead of running it manually.
 #    GPIO.setwarnings(False)
 #    GPIO.setmode(GPIO.BOARD)
 #    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-    ''' #Test later in order to see how the button works
+    
         while(True):
         if GPIO.input(5) == GPIO.LOW: #wait for button to be pressed
             break
@@ -26,31 +39,42 @@ if __name__ == '__main__':
     picam2.start()
     width = 640
     height = 480
-    kd = 0
-    kp = 0.004
+    kp = 0.006
     angle = 2090
-    count = 0
     turns = 0
-    leftn = False
-    rightn = False
-    pasterror = 0
+    pid = True
     red = False
     green = False
-    flip = False
-    #points = [(115,100), (525,100), (640,470), (0,470)]
+    
+
+    # Initialize the last detection time
+    last_detection_time = time.time()
+
+    lft = [[0,150],[150,480]]
+    right = [[490,150],[640,480]]
+    mid = [[150, 150], [490, 480]]
+    lowmid = [[0,300], [640, 480]]
+    
+    steering = 0
+    redarea = 0
+    area = 0
+
+    blueColor = (255,0,0) # Blue
+    greenColor = (0,255,0) #green
+    midRectColor = (0,0,255) #Red!
 
     points = [(0,0),(640,0),(640,480),(0,480)]
 
     ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 57600 characters per second
     ser.flush()
-    sleep(8)	    
+    time.sleep(8)	    
     
-    speed = 1660 #faster speed to accelerate
+    speed = 1680 #faster speed to accelerate
     ser.write((str(speed) + "\n").encode('utf-8'))
-    count = 0
-    counted = False
+
     while True:
-        im= picam2.capture_array()
+        steering = 1
+        im = picam2.capture_array()
 
 
         input = np.float32(points)
@@ -59,34 +83,141 @@ if __name__ == '__main__':
         matrix = cv2.getPerspectiveTransform(input,output)
         imgPerspective = cv2.warpPerspective(im, matrix, (width, height),
                                             cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
+                                            
+                                                          
+		# Define range for orange color in HSV
+        hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+            
+        #Red Detection Begins ~
+        max_area = 0
+        max_cnt = None
+        
+        lower_red = np.array([120, 140, 90]) #([120, 30, 90])
+        upper_red = np.array([180, 255, 255]) #([180, 255, 255]) 
+        rmask = cv2.inRange(hsv, lower_red, upper_red)
 
+        contours_red, _ = cv2.findContours(rmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
+        for i in range(len(contours_red)):
+            cnt = contours_red[i]
+            redarea = cv2.contourArea(cnt)
+            if redarea > max_area:
+                max_area = redarea
+                max_cnt = cnt
+            #print("Area of red", redarea)
+            if(redarea > 1500 and max_cnt is not None):
+                cv2.drawContours(im, contours_red, i, (0, 255, 0), 2)
+                M = cv2.moments(max_cnt)
+
+                # Calculate x,y coordinate of center
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+
+                print("Red Centroid coordinates: ", cX,",",cY)
+
+                # Draw contour and center of shape on image
+                cv2.drawContours(im, [max_cnt], -1, (0, 255, 0), 3)
+                cv2.circle(im,(cX,cY),5,(255,255,255),-1)
+                
+                if cX > 170:
+                #constants may be changed
+                    steering = 0.05*(cX-200) + 0.1*(cY)
+                    if steering > 45:
+                        steering = 45
+                
+                elif cX < 170 and cX > 50: #doesn't need to readjust 
+                    steering = 0
+               
+                elif cX < 50:
+                    steering = -35
+                
+                
+                angle = 2090 + steering
+                red = True
+                green = False
+                pid = False
+            else:
+                pid = True
+
+        
+        #Green detection begins ~
+        
+        if red == False:    
+            lower_green = np.array([30, 80, 30]) #([60, 100, 30])
+            upper_green = np.array([100, 255, 255]) #([90, 255, 255])
+            gmask = cv2.inRange(hsv, lower_green, upper_green)
+            contours_green, _ = cv2.findContours(gmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+			
+            for i in range(len(contours_green)):
+                cnt = contours_green[i]
+                area = cv2.contourArea(cnt)
+				#print("Area of green", area)
+                if(area > 1500):
+                    cv2.drawContours(im, contours_green, i, (0, 255, 0), 2)
+                    M = cv2.moments(cnt)
+
+					# Calculate x,y coordinate of center
+                    cX = int(M["m10"] / M["m00"])
+                    cY = int(M["m01"] / M["m00"])
+
+                    print("Green Centroid coordinates: ", cX,",",cY)
+
+					# Draw contour and center of shape on image
+                    cv2.drawContours(im, [cnt], -1, (0, 255, 0), 3)
+                    cv2.circle(im,(cX,cY),5,(255,255,255),-1)
+					
+                    if cX < 480:
+					#constants may be changed
+                        steering = -0.05*(cX-200) - 0.1*(cY)
+                        if steering < -45:
+                            steering = -45
+					
+                    elif cX > 480 and cX < 550: #doesn't need to readjust 
+                        steering = 0
+                    
+                    elif cX > 550:
+                        steering = 35
+					
+                    angle = 2090 + steering
+                    green = True
+                    red = False
+                    pid = False
+                else:
+                    pid = True       
+            
+        if red = True or green = True:
+            obstacles+=1
+            red = False
+            green = False
+      
 
         # Find contours in the edge image
         imgGray = cv2.cvtColor(imgPerspective, cv2.COLOR_BGR2GRAY)
-        ret, imgThresh = cv2.threshold(imgGray, 30, 255, cv2.THRESH_BINARY_INV)
+        ret, imgThresh = cv2.threshold(imgGray, 35, 255, cv2.THRESH_BINARY_INV) #This number may be subject to change, in order to detect only black
         # First coord is top left, second coord is bottom right.
-        
-        lft = [[0,310],[220,480]]
-
-        right = [[420,305],[640,480]]
-
-        mid = [[210, 305], [440, 480]]
 
         contoursLeft, _ = cv2.findContours(imgThresh[lft[0][1]:lft[1][1],lft[0][0]:lft[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contoursRight, _ = cv2.findContours(imgThresh[right[0][1]:right[1][1],right[0][0]:right[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+        contoursMid, _ = cv2.findContours(imgThresh[mid[0][1]:mid[1][1],mid[0][0]:mid[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contoursLowMid, _ = cv2.findContours(imgThresh[lowmid[0][1]:lowmid[1][1],lowmid[0][0]:lowmid[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
         # Offset based off topleft corner of each left/right rectrangle
         contoursLeft = [ c + lft[0] for c in contoursLeft]
         contoursRight = [ c + right[0] for c in contoursRight]
-       
+        contoursMid = [ c + mid[0] for c in contoursMid]
+        contoursLowMid = [ c + lowmid[0] for c in contoursLowMid]
 
         # Draw contours on the original image
         cv2.drawContours(im, contoursLeft, -1, (0, 255, 0), 2)
         cv2.drawContours(im, contoursRight, -1, (0, 255, 0), 2)
-     
+        #cv2.drawContours(im, contoursMid, -1, (0, 255, 0), 2)
+        #cv2.drawContours(im, contoursLowMid, -1 (0, 255, 0), 2)
+
         lftRectColor = (255,0,0) # Blue
-        rtRectColor = (255,0,0) #Still blue
+       
+        midRectColor = (0,0,255) #Red!
+        greenColor = (0,255,0) #hmm, I wonder what colour this is
+
        
         lftTot = 0
         for c in contoursLeft:
@@ -94,147 +225,39 @@ if __name__ == '__main__':
 
         rtTot = 0
         for c in contoursRight:
-            rtTot += cv2.contourArea(c)
+            rtTot += cv2.contourArea(c)    
 
-        if count == 8 and flip == False:
-            sleep(0.05)
-            if red == True and turns <= 5:
-                speed = 1630
-                angle = 2020
-                turns+=1
+        lowMidTot = 0
+        for c in contoursLowMid:
+            lowMidTot += cv2.contourArea(c)   
+
+        if angle > 2180 or angle < 2000:
+                angle = 2090 
             
-
-
-    #Red Detection Begins ~
-        contoursMid, _ = cv2.findContours(imgThresh[mid[0][1]:mid[1][1],mid[0][0]:mid[1][0]], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contoursMid = [ c + mid[0] for c in contoursMid]
-        cv2.drawContours(im, contoursMid, -1, (0, 255, 0), 2)
-
-        img_hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
-    # Lower mask (0-10)
-        lower_red = np.array([0, 50, 50])
-        upper_red = np.array([10, 255, 255])
-        mask0 = cv2.inRange(img_hsv, lower_red, upper_red)
-    # Upper mask (170-180)
-        lower_red = np.array([170, 50, 50])
-        upper_red = np.array([180, 255, 255])
-        mask1 = cv2.inRange(img_hsv, lower_red, upper_red)
-    # Join the masks
-        raw_mask = mask0 | mask1
-        contours = cv2.findContours(raw_mask, cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)[-2]
-
-        for i in range(len(contoursMid)):
-            cnt = contoursMid[i]
-            area = cv2.contourArea(cnt)
-            print("Area of red", area)
-            if(area > 2000):
-                cv2.drawContours(im, contours, i, (0, 255, 0), 2)
-                M = cv2.moments(cnt)
-
-                # Calculate x,y coordinate of center
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-
-                print("Centroid coordinates: ", cX,",",cY)
-
-                # Draw contour and center of shape on image
-                cv2.drawContours(im, [cnt], -1, (0, 255, 0), 3)
-                cv2.circle(im,(cX,cY),5,(255,255,255),-1)
-                
-                if cX > 320:
-                    steering = 0.01*(cX-160)* 0.05*(cY)
-                
-                elif cX < 320:
-                    steering = 0.01*(cX-480) * 0.05*(cY)
-                    
-                
-                angle = 2090 + steering
-                red = True
-                green = False
-
-
-        #Green detection begins ~
-        
-            
-        lower_green = np.array([50,120,50])
-        upper_green = np.array([255, 255, 15])
-        gmask = cv2.inrange(img_hsv, lower_green, upper_green)
-        contours = cv2.findContours(gmask, cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE)[-2]
-        
-        for i in range(len(contoursMid)):
-            cnt = contoursMid[i]
-            area = cv2.contourArea(cnt)
-            print("Area of green", area)
-            if(area > 2000):
-                cv2.drawContours(im, contours, i, (0, 255, 0), 2)
-                M = cv2.moments(cnt)
-
-                # Calculate x,y coordinate of center
-                cX = int(M["m10"] / M["m00"])
-                cY = int(M["m01"] / M["m00"])
-
-                print("Centroid coordinates: ", cX,",",cY)
-
-                # Draw contour and center of shape on image
-                cv2.drawContours(im, [cnt], -1, (0, 255, 0), 3)
-                cv2.circle(im,(cX,cY),5,(255,255,255),-1)
-                
-                if cX > 320:
-                    steering = 0.01*(cX-480) * 0.05*(cY)
-                
-                elif cX < 320:
-                    steering = 0.01*(cX-160)* 0.05*(cY)
-                
-                angle = 2090 + steering
-                green = True
-                red = False
-
-        
-
-        else:
+        if pid == True:
             error = lftTot-rtTot
             d = error - pasterror 
-            steering = kp * error + kd * d 
+            if steering == 1:
+                steering = kp * error + kd * d 
+                #print("Wall PID")
+                red = False
+                green = False
+                if error > 450 or error < -450:
+                    angle = 2090 + steering
+                if lowMidTot > 25000:
+                    if lftTot < rtTot:
+                        steering = 45
+                    elif rtTot > lftTot:
+                        steering = -45
             steering = int(steering)
             pasterror = error
-            red = False 
-            Green = False
-            if angle > 2180 or angle < 2000:
-                angle = 2090
-        
-        
-            if (lftTot <= 2000 and rtTot >= 2000 and error < -1700) or (lftTot <= 3000 and rtTot <= 9000 and error < -5500) or (lftTot <= 7000 and rtTot >= 13000 and error < -6000):
-                angle = 2050 + steering
-                print(lftTot <= 2000 and rtTot >= 2000 and error < -1700)
-                print(lftTot <= 3000 and rtTot <= 9000 and error < -5500)
-                print(lftTot <= 7000 and rtTot >= 13000 and error < -6000)
-                if not counted:
-                    count += 1
-                counted = True
-                rightn = True
-            elif (rtTot <= 2000 and lftTot >= 2000 and error > 1700) or (rtTot <= 3000 and lftTot <= 9000 and error > 5500) or (rtTot <= 7000 and lftTot >= 13000 and error > 6000):
-                angle = 2130 + steering
-                print(rtTot <= 2000 and lftTot >= 2000 and error > 1700)
-                print(rtTot <= 3000 and lftTot <= 9000 and error > 5500)
-                print(rtTot <= 7000 and lftTot >= 13000 and error > 6000)
-                if not counted:
-                    count+=1
-                counted = True
-                leftn = True
-            elif error > 450 or error < -450 and (rightn== True or leftn == True):
-                counted = False
-                angle = 2090
-                if steering > 45:
-                    steering = 45
-                elif steering < -45:
-                    steering = -45 
-                angle += steering
-                leftn = False
-                rightn = False
-            if count >= 1200: 
-                print("stopping")
+            
+
+            
+                
+            if turns >=12: 
+                print("3 LAPS YAY")
+                time.sleep(0.5)
                 ser.flush()
                 speed = 1500
                 angle = 2090
@@ -243,33 +266,37 @@ if __name__ == '__main__':
                 break
                 cv2.destroyAllWindows()
         
-        
         angle = int(angle)    
-        if angle > 2160:
-            angle = 2160
-        elif angle < 2020:
-            angle = 2020
-        
-        sleep(0.1)
-        print("Angle:",angle)
-        print("Steering:",steering)
-        print("Error:",error)
-        print("Turns:", count)
-        print("# of turns for cancer", turns)
+        if angle > 2140:
+            angle = 2140
+        elif angle < 2040:
+            angle = 2040
+       
+        #print("Angle:",angle)
+        #print("Steering:",steering)
+        #print("Red Area:", redarea)
+        #print("Green Area:", area)
+        #print("Error:",error)
+        #print("Turns:", turns)
+        #print("Orange turns:",orangeturns)
+        #print("Lowmid total:", lowMidTot)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
+        
 
         cv2.rectangle(im,tuple(lft[0]),tuple(lft[1]),lftRectColor,2)
         cv2.rectangle(im,tuple(right[0]),tuple(right[1]),rtRectColor,2)
+        cv2.rectangle(im,tuple(mid[0]),tuple(mid[1]), midRectColor,2)
+        cv2.rectangle(im,tuple(lowmid[0]),tuple(lowmid[1]), greenColor,2)
         cv2.putText(im,str(lftTot),(lft[0][0],lft[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
         cv2.putText(im,str(rtTot),(right[0][0],right[0][1]-5),cv2.FONT_HERSHEY_SIMPLEX,1,rtRectColor,2,cv2.LINE_AA)
         cv2.putText(im,str(angle),(lft[0][0]-20,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-        cv2.putText(im,str(count),(lft[0][0]-100,right[0][1]-250),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
-        #cv2.imshow("Thresh", imgThresh)
+        cv2.putText(im,str(turns),(lft[0][0]-50,right[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,lftRectColor,2,cv2.LINE_AA)
+        cv2.putText(im,str(area),(mid[0][0]-20,mid[0][1]-50),cv2.FONT_HERSHEY_SIMPLEX,1,greenColor,2,cv2.LINE_AA) #Area of green contours
+        cv2.putText(im,str(redarea),(mid[0][0]-20,mid[0][1]-100),cv2.FONT_HERSHEY_SIMPLEX,1,midRectColor,2,cv2.LINE_AA) #Area of red contours
+        cv2.imshow("Final", im)
 
-        cv2.imshow("Contours", im)
-
-        if cv2.waitKey(1)==ord('q') or turns == 3: #wait until key ‘q’ pressed
+        if cv2.waitKey(1)==ord('q'): #End program, press 'q'
             ser.flush()
             speed = 1500
             angle = 2090
@@ -278,4 +305,3 @@ if __name__ == '__main__':
             break
     cv2.destroyAllWindows()
 
-#Major Procrastination 1
