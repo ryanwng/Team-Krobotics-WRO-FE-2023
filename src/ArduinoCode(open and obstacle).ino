@@ -28,7 +28,7 @@ void loop(){
     buff[4] = '\0'; //end of byte, so the Arduino know when the start and end of a command is
     int val = atoi(buff); //converts string to int
 
-    if(val <= 1900 && val >= 1400) // Determines if the number is speed
+    if(val <= 1900 && val >= 1200) // Determines if the number is speed
     {
       BLDCMotor.write(val); // > 1500 forward, < 1500 backwards
     }
