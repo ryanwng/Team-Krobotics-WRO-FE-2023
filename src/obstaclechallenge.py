@@ -63,18 +63,21 @@ if __name__ == '__main__':
     steering = 0
     redarea = 0
     greenarea = 0
+    change = False
+    lap = False
 
     blueColor = (255,0,0) # Blue
     greenColor = (0,255,0) #green
     midRectColor = (0,0,255) #Red!
     lftRectColor = (255,0,0) # Blue
+    rtRectColor = (255,0,0)
     midRectColor = (0,0,255) #Red!
     greenColor = (0,255,0) #hmm, I wonder what colour this is
 
-   lower_red = np.array([120, 140, 90]) #([120, 30, 90])
-   upper_red = np.array([180, 255, 255]) #([180, 255, 255]) 
-   lower_green = np.array([30, 80, 30]) #([60, 100, 30])
-   upper_green = np.array([100, 255, 255]) #([90, 255, 255])
+    lower_red = np.array([120, 140, 90]) #([120, 30, 90])
+    upper_red = np.array([180, 255, 255]) #([180, 255, 255]) 
+    lower_green = np.array([30, 80, 30]) #([60, 100, 30])
+    upper_green = np.array([100, 255, 255]) #([90, 255, 255])
 
     ser = serial.Serial('/dev/ttyACM0', 115200, timeout = 1) #approximately 115200 characters per second
     ser.flush()
@@ -151,22 +154,21 @@ if __name__ == '__main__':
         #Green detection begins ~
         
         if red == False:
-	    max_area = 0
+            max_area = 0
             max_cnt = None
-		
+       
             gmask = cv2.inRange(hsv, lower_green, upper_green)
             contours_green, _ = cv2.findContours(gmask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 			
             for i in range(len(contours_green)):
                 cnt = contours_green[i]
                 greenarea = cv2.contourArea(cnt)
-		if greenarea > max_area:
-	            max_area = greenarea
-		    max_cnt = cnt
-		#print("Area of green", greenarea)
+                if greenarea > max_area:
+	                max_area = greenarea
+	                max_cnt = cnt
                 if(greenarea > 1500 and max_cnt is not None):
                     cv2.drawContours(im, contours_green, i, (0, 255, 0), 2)
-                    M = cv2.moments(max_cnt)
+                    M = cv2.moments(cnt)
 
 		    # Calculate x,y coordinate of center
                     cX = int(M["m10"] / M["m00"])
@@ -175,7 +177,7 @@ if __name__ == '__main__':
                     print("Green Centroid coordinates: ", cX,",",cY)
 
 		# Draw contour and center of shape on image
-                    cv2.drawContours(im, [max_cnt], -1, (0, 255, 0), 3)
+                    cv2.drawContours(im, [cnt], -1, (0, 255, 0), 3)
                     cv2.circle(im,(cX,cY),5,(255,255,255),-1)
 					
                     if cX < 480:
@@ -236,11 +238,13 @@ if __name__ == '__main__':
         if angle > 2180 or angle < 2000:
                 angle = 2090 
 
-	if((lftTot < 2000 or rtTot < 2000) and time.time() - delay >= 8.5):
-            turns += 1
-            delay = time.time()  
-            
+        if((lftTot < 2000 or rtTot < 2000) and time.time() - delay >= 8.5):
+	        turns += 1
+	        delay = time.time()
+	        
         if pid == True:
+            red = False
+            green = False
             error = lftTot-rtTot
             if steering == 1:
                 steering = kp * error
@@ -254,25 +258,45 @@ if __name__ == '__main__':
                         steering = -45
             steering = int(steering)
             
-
-            if turns = 8 and change = False:
-		change = True
-		if red == True: #implies needs to finish last lap counterclockwise
-		    delay = time.time()
-		    if lftTot > rtTot:
-			angle = 2140
-			sleep(3)
-		    elif rtTot > lftTot:
-			angle = 2040
-			sleep(3)
-			
+        '''
+        if turns == 8:
+            if change == False:
+                delayer = time.time()
+                change = True
+                check = False
+            if (red == True and time.time() -  delayer >= 1) and check == False: #implies needs to finish last lap counterclockwise
+                print("Start")
+                check = True
+                ser.flush()
+                speed = 1675
+                if lftTot > rtTot:
+                    angle = 2120
+                elif rtTot < lftTot:
+                    angle = 2060
+                ser.write((str(speed) + "\n").encode('utf-8'))
+                ser.write((str(angle) + "\n").encode('utf-8'))
+                time.sleep(3)
+                ser.flush()
                 
-            if turns >=12: 
-		if lap == False
-		    last.detection_time = time.time()
-		    lap = True
-		if (time.time() - last_detection_time >= 3)
-		ser.flush()
+                
+                if lftTot > rtTot:
+                    angle = 2030
+                    ser.write((str(angle) + "\n").encode('utf-8'))
+                    time.sleep(5)
+                    print("End")
+                elif rtTot > lftTot:
+                    angle = 2150
+                    ser.write((str(angle) + "\n").encode('utf-8'))
+                    time.sleep(5)
+                    print("End")
+                    '''
+                
+        if turns >=12: 
+            if lap == False:
+                last_detection_time = time.time() 
+                lap = True
+            if (time.time() - last_detection_time >= 7.5):
+                ser.flush()
                 speed = 1500
                 angle = 2090
                 ser.write((str(speed) + "\n").encode('utf-8'))
@@ -291,9 +315,10 @@ if __name__ == '__main__':
         #print("Red Area:", redarea)
         #print("Green Area:", greenarea)
         #print("Error:",error)
-        #print("Turns:", turns)
+        print("Turns:", turns)
         #print("Orange turns:",orangeturns)
         #print("Lowmid total:", lowMidTot)
+        #print(red)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
         
@@ -318,4 +343,3 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
     cv2.destroyAllWindows()
-
