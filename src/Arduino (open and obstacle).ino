@@ -14,9 +14,9 @@ char buff[5]; //Var which will help us differentiate the start and end of inform
 
 void setup(){
   Serial.begin(115200); //Baud rate == 115200
-  servoMotor.attach(11); // White wire for servo motor
+  servoMotor.attach(11); // Orange wire for servo motor
   servoMotor.write(90); //Sets servo to be straight (90 degrees)
-  BLDCMotor.attach(13, 1000, 2000); // Yellow wire
+  BLDCMotor.attach(13, 1000, 2000); // Blue wire
   BLDCMotor.writeMicroseconds(1500); //Delay to wait for motor to be ready
 }
 
