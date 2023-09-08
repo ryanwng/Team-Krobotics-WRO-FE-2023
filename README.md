@@ -62,32 +62,32 @@ As previously mentioned, the car counts the number of laps by the number of time
 
 # Mechanical Parts
 
-Traxxas Trx4M
+**Traxxas Trx4M**
 
 The Traxxas Trx4m was initially chosen due to the fact that it would be easy to modify, as well as being a great all around car which is able to handle all sorts of terrain, electrical components being compatible with ours, as well as fitting the size and weight restraints of the car.
 
-Raspberry Pi 4 Model B
+**Raspberry Pi 4 Model B**
 
 The Raspberry Pi was chosen as it is a common computing device which allows for all sorts of coding and intricate use which will be helpful in the competition. Some examples will be communication with the arduino, attaching a camera and powersource, and using the vast amount of libraries that the pi has to offer.
 
-Arduino Uno R3
+**Arduino Uno R3**
 
 The Arduino was chosen for its popularity and for its great synergy with the Raspberry Pi. Also, it allowed for easy control of the DC motor and the Servo motor, with an easy to understand programming interface and great debugging.
 
-Furitek Micro Komodo Motor
+**Furitek Micro Komodo Motor**
 
 The Furitek motor was used over the original Traxxas motor due to the fact that it was brushless versus the latter which was brushed. There are many benefits for using a brushless motor as opposed to a brushed motor. Brushless motors require less power, produce higher speed, and also make less noise.
 
-Traxxas LiPo Battery and charger
+**Traxxas LiPo Battery and charger**
 
 The battery and charger which powers the DC and Servo motor. The only changes made were connections with the wiring.
 
 
-Raspberry Pi Sugar 4
+**PiSugar S Pro**
 
 The Raspberry Pi Sugar was used to power the Pi, which also ended up powering the Arduino. This would be important in ensuring that both the Pi and Arduino would have sufficient power to run at its full capacity. However, a slight issue occurred as we have two power sources, and the restraints made it such that we could only have one switch to turn both of them on. More will be discussed about this later in the DPST switch section.
 
-DPST Switch
+**DPST Switch**
 
 Due to the rules, it restricts us to having only one switch to fully turn on the robot. Due to the fact that we have both a power source for the Pi and Arduino, and a power source for the motors, it meant that these two connections had to be connected into one switch. This was done using the DPST switch.
 
@@ -96,7 +96,7 @@ Due to the rules, it restricts us to having only one switch to fully turn on the
 We decided to use a Traxxas Trx4M as our base, the chassis was expanded on using 3D printed elements and zipties in order to ensure the stability of our parts. For example, our camera is stabilized on a 3D printed mount, which is stabilized through the use of glue and zipties. Our motor is a Furitek Micro Komodo Motor, it has 3 wires that connect to our esc to control speed and torque. This motor is directly compatible with the car we picked. Using cases and bases to hold the Raspberry Pi and its respective power source was helpful in condensing the robot in size. Lego was also used during the prototyping stage but later removed.
 
 
-3D Parts
+**3D Parts**
 
 A base was designed in order to hold the Raspberry Pi, Arduino, wiring and some other pieces. A camera stand was designed to ensure that the camera would stay in the same place and be stable while driving
 
