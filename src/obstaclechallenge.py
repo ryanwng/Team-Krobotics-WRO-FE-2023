@@ -1,12 +1,6 @@
 '''
 This code can successfully do the obstacle challenge.
 
-TO DO
-Make sure that green only shows "one" rectangle (max area, same as red)
-make it so that only red/green can be shown and not both
-Make it such that it tracks pillars and determines if needed to turn around for final lap
-Optimization
-
 '''
 
 import cv2
@@ -18,17 +12,17 @@ import serial
 
 if __name__ == '__main__':
 
-    '''
+    
     This part will allow the code to run at the start of a button instead of running it manually.
-#    GPIO.setwarnings(False)
-#    GPIO.setmode(GPIO.BOARD)
-#    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BOARD)
+    GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
     
         while(True):
         if GPIO.input(5) == GPIO.LOW: #wait for button to be pressed
             break
-    '''
+    
 
     #Intializing the camera
     picam2 = Picamera2()
@@ -315,14 +309,14 @@ if __name__ == '__main__':
         #print("Red Area:", redarea)
         #print("Green Area:", greenarea)
         #print("Error:",error)
-        print("Turns:", turns)
+        #print("Turns:", turns)
         #print("Orange turns:",orangeturns)
         #print("Lowmid total:", lowMidTot)
         #print(red)
     
         ser.write((str(angle) + "\n").encode('utf-8'))
         
-
+	'''
         cv2.rectangle(im,tuple(lft[0]),tuple(lft[1]),lftRectColor,2)
         cv2.rectangle(im,tuple(right[0]),tuple(right[1]),rtRectColor,2)
         cv2.rectangle(im,tuple(mid[0]),tuple(mid[1]), midRectColor,2)
@@ -343,3 +337,4 @@ if __name__ == '__main__':
             ser.write((str(angle) + "\n").encode('utf-8'))
             break
     cv2.destroyAllWindows()
+    '''
