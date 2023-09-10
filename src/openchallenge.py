@@ -1,7 +1,5 @@
 '''
-TO DO:
-Reduce ROI slightly (make it slightly lower)
-Clean up code a little bit
+This code can successfully do the open challenge.
 
 
 '''
