@@ -3,7 +3,7 @@
 # Engineering Documentation | Team Krobotics | Canada
 ----
 
-This repository contains engineering materials of The Crobot, a vehicle's model from Team Krobotics, for the WRO Future Engineers competition for the 2023 season.
+This repository contains engineering materials of The Krobot, a vehicle's model from Team Krobotics, for the WRO Future Engineers competition for the 2023 season.
 
 ----
 
@@ -28,16 +28,14 @@ v-photos - contains vehicle photos, from all directions
 
 video - contains youtube links for videos of our robot
 
-others - other required photos
-
 ----
 
 
 
 # Program arrangement and Algorithm Planning
-The robot runs on a Raspberry Pi board, we also use an Arducam for Raspberry Pi Camera, OV5647 Pi Camera Module. It detects the surrounding environment including walls and red/green obstacles. The motor and steering servo are both connected to our Arduino Uno board. To count the number of laps, we see how many times the robot is in the “turning state.” Once it reaches 12, we stop the program(set speed to zero and angle to forward).
+The robot runs on a Raspberry Pi board, we also use an Arducam for Raspberry Pi Camera, OV5647 Pi Camera Module. It detects the surrounding environment including walls and red/green obstacles. The motor and steering servo are both connected to our Arduino Uno board. To count the number of laps, we see how many times the robot detects a low area of ROI one either side (which indicates when it turns). Once it reaches 12, we stop the program after a set amount of time.
 
-When the robot is turned on, it will communicate with the Raspberry Pi, and then waits for the code to run. The servo motor is set to center and the motor speed is set to zero.
+When the robot is turned on, it will communicate with the Raspberry Pi, and then waits for a button to be pressed. Once the button is pressed, the servo motor is set to center and the motor speed is set to zero.
 
 
 **Step 1 - Starting Run:**
@@ -54,7 +52,7 @@ In order to turn correctly for the traffic lights, we have a region of interest 
 
 **Step 4 - Counting Laps**
 
-As previously mentioned, the car counts the number of laps by the number of times the car goes into its turning phase. Once it counts that it has turned 12 times, it means that 12 laps have occurred. Then, the program will stop.
+As previously mentioned, the car counts the number of laps by the number of times the car detects lack of area in either left or right ROI. Once it counts that it has turned 12 times, it means that 3 laps have occurred. Then, the program will stop after 8 seconds to ensure it ends in the final area.
 
 ----
 
@@ -93,13 +91,15 @@ Due to the rules, it restricts us to having only one switch to fully turn on the
 
 **Mechanical Design**
 
-We decided to use a Traxxas Trx4M as our base, the chassis was expanded on using 3D printed elements and zipties in order to ensure the stability of our parts. For example, our camera is stabilized on a 3D printed mount, which is stabilized through the use of glue and zipties. Our motor is a Furitek Micro Komodo Motor, it has 3 wires that connect to our esc to control speed and torque. This motor is directly compatible with the car we picked. Using cases and bases to hold the Raspberry Pi and its respective power source was helpful in condensing the robot in size. Lego was also used during the prototyping stage but later removed.
+We decided to use a Traxxas Trx4M as our base, the chassis was expanded on using 3D printed elements and zipties in order to ensure the stability of our parts. For example, our camera is stabilized on a 3D printed mount, which is stabilized through the use of glue and zipties. Our motor is a Furitek Micro Komodo Motor, it has 3 wires that connect to our esc to control speed and torque. This motor is directly compatible with the car we picked. Using cases and bases to hold the Raspberry Pi and its respective power source was helpful in condensing the robot in size. Lego was also used to create a camera stand to ensure that the camera would face down. Finally, tape was used in some areas, along with hot glue to increase the stability of the car in weaker areas.
 
 
 **3D Parts**
 
-A base was designed in order to hold the Raspberry Pi, Arduino, wiring and some other pieces. A camera stand was designed to ensure that the camera would stay in the same place and be stable while driving
+A base was designed in order to hold the Raspberry Pi, Arduino, wiring and some other pieces. A camera stand was previously designed to ensure that the camera would stay in the same place and be stable while driving. However, it was figured later on that the camera wouldn't be able to face down, and so the stand was made with lego and some wooden pieces to ensure it would stay in place. 
 
+**Hardware Issues**
 
+There ended up being some hardware issues which he had to fix throughout the preparation of the competition. Firstly, the use of the button on the Pi Sugar S Pro was necessary in order to fulfill the requirements of the competition of using only one button to start the program. This meant adding additional code, along with solidfying the reason for using the Pi Sugar S Pro compared to other power sources, such as lithium batteries. Also, for the Raspberry Pi it would be necessary to code a way to run a program immediately upon turning on. This was done using the command "sudo crontab -e" which allows for programs to run upon rebooting of the raspberry pi. This alongside with the GPIO button on the Pi Sugar S pro was invaluable in allowing for a suitable car which can perform all its necessary functions. 
 
 
