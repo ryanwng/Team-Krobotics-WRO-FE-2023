@@ -5,6 +5,8 @@
 
 This repository contains engineering materials of The Krobot, a vehicle's model from Team Krobotics, for the WRO Future Engineers competition for the 2023 season.
 
+The theme "Connecting the World" focused on exploring how robots can improve shipping logistics and digial infrastuructre to promote safety, sustainability and efficiency. In the Future Engineers category, the competition was to design a self-driving autonomous robot vehicle which was capable of navigating around a randomly generated track with obstacles acting as "traffic lights."
+
 ----
 
 ## Team Members:
